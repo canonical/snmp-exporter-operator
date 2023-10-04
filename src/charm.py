@@ -33,7 +33,7 @@ class PrometheusSnmpExporterCharm(ops.CharmBase):
 
     def on_install(self, event: ops.InstallEvent):
         """Handle install event."""
-        self.snap.ensure(state=snap.SnapState.Latest, channel="candidate")
+        self.snap.ensure(state=snap.SnapState.Latest, channel="0.24/stable")
 
     def on_start(self, event: ops.StartEvent):
         """Handle start event."""
