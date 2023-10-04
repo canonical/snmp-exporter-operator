@@ -1,0 +1,19 @@
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: snmp-exporter
+display-name: SNMP Exporter
+summary: Prometheus compatible SNMP exporter.
+description: |
+  Exporter that exposes information gathered from SNMP for use by the a Prometheus compatible monitoring system.
+maintainers:
+  - Canonical Observability <observability@canonical.com>
+
+provides:
+  cos-agent:
+    interface: cos_agent
+    limit: 1
+
+series:
+  - jammy
+  - focal
