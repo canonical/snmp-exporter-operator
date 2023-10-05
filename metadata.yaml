@@ -5,6 +5,7 @@ name: snmp-exporter
 display-name: SNMP Exporter
 summary: Prometheus compatible SNMP exporter.
 website: https://github.com/canonical/snmp-exporter-operator
+docs: https://discourse.charmhub.io/t/snmp-exporter-docs-index/12050
 description: |
   Exporter that exposes information gathered from SNMP for use by the a Prometheus compatible monitoring system.
 maintainers:
