@@ -13,7 +13,7 @@ from charms.operator_libs_linux.v2 import snap
 logger = logging.getLogger(__name__)
 
 
-class PrometheusSnmpExporterCharm(ops.CharmBase):
+class SnmpExporterCharm(ops.CharmBase):
     """Charm the application."""
 
     def __init__(self, *args):
@@ -91,4 +91,4 @@ class PrometheusSnmpExporterCharm(ops.CharmBase):
 
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main(PrometheusSnmpExporterCharm)  # type: ignore
+    ops.main(SnmpExporterCharm)  # type: ignore
