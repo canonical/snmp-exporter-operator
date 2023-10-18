@@ -5,14 +5,14 @@ from scenario import Context, Relation, State
 
 
 def test_status_no_config():
-    context = Context(charm_type=charm.SnmpExporterCharm)
+    context = Context(charm_type=charm.SNMPExporterCharm)
     state = State(config={"targets": ""})
     state_out = context.run(event="config-changed", state=state)
     assert state_out.unit_status.name == "blocked"
 
 
 def test_status_with_config():
-    context = Context(charm_type=charm.SnmpExporterCharm)
+    context = Context(charm_type=charm.SNMPExporterCharm)
     state = State(config={"targets": "1.2.3.4"})
     state_out = context.run(event="config-changed", state=state)
     assert state_out.unit_status.name == "active"
@@ -20,7 +20,7 @@ def test_status_with_config():
 
 def test_cos_agent_relation_data_is_set():
     cos_agent_relation = Relation("cos-agent", remote_app_name="grafana-agent")
-    context = Context(charm_type=charm.SnmpExporterCharm)
+    context = Context(charm_type=charm.SNMPExporterCharm)
     state = State(relations=[cos_agent_relation], config={"targets": "1.2.3.4"})
     state_out = context.run(event=cos_agent_relation.changed_event, state=state)
 

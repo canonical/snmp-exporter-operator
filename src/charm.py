@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 SNAP_CHANNEL = "0.24/stable"
 
-class SnmpExporterCharm(ops.CharmBase):
+class SNMPExporterCharm(ops.CharmBase):
     """Charm the application."""
 
     def __init__(self, *args):
@@ -92,4 +92,4 @@ class SnmpExporterCharm(ops.CharmBase):
 
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main(SnmpExporterCharm)  # type: ignore
+    ops.main(SNMPExporterCharm)  # type: ignore
