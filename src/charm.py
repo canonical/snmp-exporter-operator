@@ -12,6 +12,7 @@ from charms.operator_libs_linux.v2 import snap
 
 logger = logging.getLogger(__name__)
 
+SNAP_CHANNEL = "0.24/stable"
 
 class SnmpExporterCharm(ops.CharmBase):
     """Charm the application."""
@@ -33,7 +34,7 @@ class SnmpExporterCharm(ops.CharmBase):
 
     def on_install(self, event: ops.InstallEvent):
         """Handle install event."""
-        self.snap.ensure(state=snap.SnapState.Latest, channel="0.24/stable")
+        self.snap.ensure(state=snap.SnapState.Latest, channel=SNAP_CHANNEL)
 
     def on_start(self, event: ops.StartEvent):
         """Handle start event."""
