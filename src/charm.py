@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 SNAP_CHANNEL = "0.24/stable"
 EXPORTER_PORT = 9116
 
+
 class SNMPExporterCharm(ops.CharmBase):
     """Charm the application."""
 
@@ -88,7 +89,10 @@ class SNMPExporterCharm(ops.CharmBase):
                 ],
             },
             # The metrics of prometheus-snmp-exporter itself
-            {"job_name": "snmp-exporter", "static_configs": [{"targets": [f"localhost:{EXPORTER_PORT}"]}]},
+            {
+                "job_name": "snmp-exporter",
+                "static_configs": [{"targets": [f"localhost:{EXPORTER_PORT}"]}],
+            },
         ]
 
 
