@@ -13,6 +13,7 @@ from charms.operator_libs_linux.v2 import snap
 logger = logging.getLogger(__name__)
 
 SNAP_CHANNEL = "0.24/stable"
+EXPORTER_PORT = 9116
 
 class SNMPExporterCharm(ops.CharmBase):
     """Charm the application."""
@@ -82,12 +83,12 @@ class SNMPExporterCharm(ops.CharmBase):
                     },
                     {
                         "target_label": "__address__",
-                        "replacement": "localhost:9116",
+                        "replacement": f"localhost:{EXPORTER_PORT}",
                     },
                 ],
             },
             # The metrics of prometheus-snmp-exporter itself
-            {"job_name": "snmp-exporter", "static_configs": [{"targets": ["localhost:9116"]}]},
+            {"job_name": "snmp-exporter", "static_configs": [{"targets": [f"localhost:{EXPORTER_PORT}"]}]},
         ]
 
 
