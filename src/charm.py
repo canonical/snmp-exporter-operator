@@ -67,7 +67,7 @@ class SNMPExporterCharm(ops.CharmBase):
             # The actual SNMP scrape jobs
             {
                 "job_name": "snmp",
-                "static_configs": [{"targets": self.model.config["targets"].split(",")}],
+                "static_configs": [{"targets": str(self.model.config["targets"]).split(",")}],
                 "metrics_path": "/snmp",
                 "params": {
                     "auth": ["public_v2"],
