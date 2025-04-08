@@ -1,9 +1,0 @@
-# Copyright 2023 Canonical Ltd.
-# See LICENSE file for licensing details.
-
-options:
-  targets:
-    default: ""
-    type: string
-    description: |
-        Comma separated list of targets to scrape

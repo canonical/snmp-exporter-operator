@@ -1,7 +1,8 @@
 import json
 
-import charm
 from scenario import Context, Relation, State
+
+import charm
 
 
 def test_status_no_config():
