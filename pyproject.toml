@@ -21,7 +21,7 @@ dev = [
   # Unit
   "pytest",
   "coverage[toml]",
-  "ops-scenario",
+  "ops[testing]",
 ]
 
 # Testing tools configuration
