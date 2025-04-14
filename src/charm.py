@@ -5,6 +5,7 @@
 """Charm the application."""
 
 import logging
+import typing
 
 import ops
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
@@ -67,7 +68,9 @@ class SNMPExporterCharm(ops.CharmBase):
             # The actual SNMP scrape jobs
             {
                 "job_name": "snmp",
-                "static_configs": [{"targets": self.model.config["targets"].split(",")}],
+                "static_configs": [
+                    {"targets": typing.cast(str, self.model.config["targets"]).split(",")}
+                ],
                 "metrics_path": "/snmp",
                 "params": {
                     "auth": ["public_v2"],
