@@ -40,3 +40,20 @@ config:
       type: string
       description: |
           Comma separated list of targets to scrape
+    config_file:
+      type: string
+      default: ""
+      description: >
+        Custom SNMP configuration file (yaml).
+        To send the contents of a file to this configuration option, the symbol `@` must be used.
+
+        Usage: juju config snmp-exporter config_file=@snmp.yaml
+
+        The content of this file should not be manually created or edited by user. 
+        For reference on how to generate config file, please refer to:
+        https://github.com/prometheus/snmp_exporter/tree/main/generator
+    custom_module:
+      type: string
+      default: ""
+      description: >
+        Name of the custom module defined in the snmp.yaml.
