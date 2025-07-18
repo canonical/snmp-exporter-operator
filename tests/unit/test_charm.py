@@ -18,7 +18,58 @@ def test_status_with_targets(ctx):
 
 
 def test_status_with_config_file(ctx):
-    """Test that valid config_file and custom_module result in active status."""
+    """Test that valid config_file and scrape_config_file result in active status."""
+    config_dict = {
+        "auths": {"public_v2": {"community": "public", "version": 2}},
+        "modules": {"my_module": {"walk": ["1.3.6.1.2.1.1"]}},
+    }
+    valid_yaml = yaml.dump(config_dict)
+
+    scrape_config_dict = {
+        "scrape_configs": [
+            {
+                "job_name": "snmp",
+                "static_configs": [{"targets": ["1.2.3.4"]}],
+                "metrics_path": "/snmp",
+                "params": {"module": ["my_module"]},
+                "relabel_configs": [
+                    {
+                        "source_labels": ["__address__"],
+                        "target_label": "__param_target",
+                    },
+                    {
+                        "source_labels": ["__param_target"],
+                        "target_label": "instance",
+                    },
+                    {
+                        "target_label": "__address__",
+                        "replacement": "localhost:9116",
+                    },
+                ],
+            }
+        ]
+    }
+    scrape_config_yaml = yaml.dump(scrape_config_dict)
+
+    # Mock file operations to prevent actual file writing
+    with mock.patch("builtins.open", mock.mock_open()), mock.patch(
+        "yaml.dump"
+    ), mock.patch("os.makedirs"), mock.patch(
+        "charms.operator_libs_linux.v2.snap.Snap.restart"
+    ):
+        state = State(
+            config={
+                "targets": "",
+                "config_file": valid_yaml,
+                "scrape_config_file": scrape_config_yaml,
+            }
+        )
+        state_out = ctx.run(ctx.on.config_changed(), state=state)
+        assert state_out.unit_status.name == "active"
+
+
+def test_status_with_config_file_no_scrape_config(ctx):
+    """Test that having config_file without scrape_config_file results in blocked status."""
     config_dict = {
         "auths": {"public_v2": {"community": "public", "version": 2}},
         "modules": {"my_module": {"walk": ["1.3.6.1.2.1.1"]}},
@@ -27,34 +78,15 @@ def test_status_with_config_file(ctx):
 
     state = State(
         config={
-            "targets": "1.2.3.4",
+            "targets": "",
             "config_file": valid_yaml,
-            "custom_module": "my_module",
-        }
-    )
-    state_out = ctx.run(ctx.on.config_changed(), state=state)
-    assert state_out.unit_status.name == "active"
-
-
-def test_status_with_config_file_no_module(ctx):
-    """Test that having config_file without custom_module results in blocked status."""
-    config_dict = {
-        "auths": {"public_v2": {"community": "public", "version": 2}},
-        "modules": {"my_module": {"walk": ["1.3.6.1.2.1.1"]}},
-    }
-    valid_yaml = yaml.dump(config_dict)
-
-    state = State(
-        config={
-            "targets": "1.2.3.4",
-            "config_file": valid_yaml,
-            "custom_module": "",
+            "scrape_config_file": "",
         }
     )
     state_out = ctx.run(ctx.on.config_changed(), state=state)
     assert state_out.unit_status.name == "blocked"
     assert (
-        "Both config_file and custom_module must be set together"
+        'Please set either "targets" or both config files (config_file and scrape_config_file)'
         in state_out.unit_status.message
     )
 
@@ -64,15 +96,50 @@ def test_invalid_config_file(ctx):
     # Test with a filename string instead of YAML content
     state = State(
         config={
-            "targets": "1.2.3.4",
+            "targets": "",
             "config_file": "snmp.yaml",  # This is a filename, not YAML content
-            "custom_module": "my_module",
+            "scrape_config_file": "scrape_config.yaml",  # This is a filename, not YAML content
         }
     )
     state_out = ctx.run(ctx.on.config_changed(), state=state)
     assert state_out.unit_status.name == "blocked"
-    assert "Use juju config" in state_out.unit_status.message
-    assert "config_file=@FILENAME" in state_out.unit_status.message
+    assert (
+        "Invalid configuration files. Check logs for details."
+        in state_out.unit_status.message
+    )
+
+
+def test_conflicting_config(ctx):
+    """Test that setting both targets and config files results in blocked status."""
+    config_dict = {
+        "auths": {"public_v2": {"community": "public", "version": 2}},
+        "modules": {"my_module": {"walk": ["1.3.6.1.2.1.1"]}},
+    }
+    valid_yaml = yaml.dump(config_dict)
+
+    scrape_config_dict = {
+        "scrape_configs": [{
+            "job_name": "snmp",
+            "static_configs": [{"targets": ["1.2.3.4"]}],
+            "metrics_path": "/snmp",
+            "params": {"module": ["my_module"]},
+        }]
+    }
+    scrape_config_yaml = yaml.dump(scrape_config_dict)
+
+    state = State(
+        config={
+            "targets": "1.2.3.4",  # Setting targets
+            "config_file": valid_yaml,  # And config files - this should conflict
+            "scrape_config_file": scrape_config_yaml,
+        }
+    )
+    state_out = ctx.run(ctx.on.config_changed(), state=state)
+    assert state_out.unit_status.name == "blocked"
+    assert (
+        "Cannot set both 'targets' and config files. Please unset one of them."
+        in state_out.unit_status.message
+    )
 
 
 def test_scrape_job_with_config(ctx):
@@ -83,9 +150,37 @@ def test_scrape_job_with_config(ctx):
     }
     valid_yaml = yaml.dump(config_dict)
 
+    scrape_config_dict = {
+        "scrape_configs": [
+            {
+                "job_name": "snmp",
+                "static_configs": [{"targets": ["1.2.3.4", "1.2.3.5"]}],
+                "metrics_path": "/snmp",
+                "params": {"module": ["my_custom_module"]},
+                "relabel_configs": [
+                    {
+                        "source_labels": ["__address__"],
+                        "target_label": "__param_target",
+                    },
+                    {
+                        "source_labels": ["__param_target"],
+                        "target_label": "instance",
+                    },
+                    {
+                        "target_label": "__address__",
+                        "replacement": "localhost:9116",
+                    },
+                ],
+            }
+        ]
+    }
+    scrape_config_yaml = yaml.dump(scrape_config_dict)
+
     # Mock file operations to prevent actual file writing
     with mock.patch("builtins.open", mock.mock_open()), mock.patch(
         "yaml.dump"
+    ), mock.patch("os.makedirs"), mock.patch(
+        "charms.operator_libs_linux.v2.snap.Snap.restart"
     ):
         # Create a relation to get the scrape job configuration
         cos_agent_relation = Relation(
@@ -94,9 +189,9 @@ def test_scrape_job_with_config(ctx):
         state = State(
             relations=[cos_agent_relation],
             config={
-                "targets": "1.2.3.4,1.2.3.5",
+                "targets": "",
                 "config_file": valid_yaml,
-                "custom_module": "my_custom_module",
+                "scrape_config_file": scrape_config_yaml,
             },
         )
 
