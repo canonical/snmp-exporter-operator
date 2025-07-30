@@ -56,7 +56,8 @@ class SNMPExporterCharm(ops.CharmBase):
         """Handle config changed event."""
         # Handle file writing and service restart during config change
         config_data = self._validate_and_parse_configs()
-        if config_data:
+        targets = self.model.config.get("targets", "")
+        if config_data and not targets:
             snmp_config, _ = config_data
             # Write the SNMP config file and restart service
             self._write_snmp_config_file(snmp_config)

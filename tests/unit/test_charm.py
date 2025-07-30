@@ -31,7 +31,7 @@ def test_status_with_config_file(ctx):
                 "job_name": "snmp",
                 "static_configs": [{"targets": ["1.2.3.4"]}],
                 "metrics_path": "/snmp",
-                "params": {"module": ["my_module"]},
+                "params": {"auth": ["public_v2"], "module": ["my_module"]},
                 "relabel_configs": [
                     {
                         "source_labels": ["__address__"],
@@ -118,12 +118,14 @@ def test_conflicting_config(ctx):
     valid_yaml = yaml.dump(config_dict)
 
     scrape_config_dict = {
-        "scrape_configs": [{
-            "job_name": "snmp",
-            "static_configs": [{"targets": ["1.2.3.4"]}],
-            "metrics_path": "/snmp",
-            "params": {"module": ["my_module"]},
-        }]
+        "scrape_configs": [
+            {
+                "job_name": "snmp",
+                "static_configs": [{"targets": ["1.2.3.4"]}],
+                "metrics_path": "/snmp",
+                "params": {"auth": ["public_v2"], "module": ["my_module"]},
+            }
+        ]
     }
     scrape_config_yaml = yaml.dump(scrape_config_dict)
 
@@ -156,7 +158,10 @@ def test_scrape_job_with_config(ctx):
                 "job_name": "snmp",
                 "static_configs": [{"targets": ["1.2.3.4", "1.2.3.5"]}],
                 "metrics_path": "/snmp",
-                "params": {"module": ["my_custom_module"]},
+                "params": {
+                    "auth": ["public_v2"],
+                    "module": ["my_custom_module"],
+                },
                 "relabel_configs": [
                     {
                         "source_labels": ["__address__"],
@@ -224,9 +229,6 @@ def test_scrape_job_with_config(ctx):
             "1.2.3.4",
             "1.2.3.5",
         ]
-
-        # Verify no auth parameter (should be handled by config file)
-        assert "auth" not in snmp_job["params"]
 
         # Verify custom module is used
         assert snmp_job["params"]["module"] == ["my_custom_module"]
