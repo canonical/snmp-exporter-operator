@@ -7,7 +7,7 @@
 import logging
 import os
 import typing
-from typing import Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 import ops
 import yaml
@@ -55,61 +55,23 @@ class SNMPExporterCharm(ops.CharmBase):
     def on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle config changed event."""
         # Handle file writing and service restart during config change
-        config_data = self._validate_and_parse_configs()
-        targets = self.model.config.get("targets", "")
-        if config_data and not targets:
-            snmp_config, _ = config_data
-            # Write the SNMP config file and restart service
-            self._write_snmp_config_file(snmp_config)
+        snmp_config = self.snmp_config
+        if snmp_config:
+            self._write_snmp_config_file(snmp_config=snmp_config)
 
         self.set_status()
 
-    def _validate_and_parse_configs(self) -> Optional[Tuple[dict, dict]]:
-        """Validate and parse both config files.
-
-        Returns a tuple of (config_file_dict, scrape_config_dict) if both are valid,
-        otherwise returns None.
-        """
-        snmp_config_content = self.model.config.get("config_file", "")
-        scrape_config_content = self.model.config.get("scrape_config_file", "")
-
-        if not (snmp_config_content and scrape_config_content):
-            return None
-
-        # Parse config_file
-        try:
-            snmp_config = yaml.safe_load(cast(str, snmp_config_content))
-            if not isinstance(snmp_config, dict):
-                msg = f"Unable to set config from file. Use juju config {self.unit.name} config_file=@FILENAME"
-                logger.error(msg)
+    @property
+    def snmp_config(self) -> Optional[Dict]:
+        """Return the SNMP config from the Juju config options, if any is present."""
+        if config_file := cast(str, self.config["config_file"]):
+            snmp_config = yaml.safe_load(config_file)
+            if not isinstance(snmp_config, Dict):
+                logger.error(
+                    f"Unable to set config from file. Use juju config {self.unit.name} config_file=@FILENAME"
+                )
                 return None
-        except yaml.YAMLError as e:
-            logger.error(f"Failed to parse YAML config_file: {e}")
-            return None
-
-        # Parse scrape_config_file
-        try:
-            scrape_config = yaml.safe_load(cast(str, scrape_config_content))
-            if not isinstance(scrape_config, dict):
-                msg = f"Unable to set scrape config from file. Use juju config {self.unit.name} scrape_config_file=@FILENAME"
-                logger.error(msg)
-                return None
-        except yaml.YAMLError as e:
-            logger.error(f"Failed to parse YAML scrape_config_file: {e}")
-            return None
-
-        # Validate scrape_config structure
-        if "scrape_configs" not in scrape_config:
-            logger.error(
-                "scrape_config_file must contain 'scrape_configs' key"
-            )
-            return None
-
-        if not isinstance(scrape_config["scrape_configs"], list):
-            logger.error("'scrape_configs' must be a list")
-            return None
-
-        return snmp_config, scrape_config
+            return snmp_config
 
     def _write_snmp_config_file(self, snmp_config: dict) -> bool:
         """Write the SNMP config file to the expected location and restart the service.
@@ -123,9 +85,7 @@ class SNMPExporterCharm(ops.CharmBase):
             config_path = os.path.join(snap_data_path, "snmp.yml")
         except (AttributeError, KeyError, TypeError) as e:
             # Fallback to current symlink if snap revision is not available
-            logger.warning(
-                f"Could not get snap revision: {e}. Using fallback path."
-            )
+            logger.warning(f"Could not get snap revision: {e}. Using fallback path.")
             config_path = "/var/snap/prometheus-snmp-exporter/current/snmp.yml"
 
         try:
@@ -139,9 +99,7 @@ class SNMPExporterCharm(ops.CharmBase):
             # Restart the snap service to pick up the new configuration
             try:
                 self.snap.restart()
-                logger.info(
-                    "SNMP exporter service restarted to load new configuration"
-                )
+                logger.info("SNMP exporter service restarted to load new configuration")
             except (snap.SnapError, OSError, AttributeError) as e:
                 logger.warning(f"Failed to restart SNMP exporter service: {e}")
 
@@ -149,7 +107,6 @@ class SNMPExporterCharm(ops.CharmBase):
         except OSError as e:
             logger.error(f"Failed to write SNMP config file: {e}")
             return False
-
 
     def set_status(self):
         """Calculate and set the unit status."""
@@ -172,13 +129,11 @@ class SNMPExporterCharm(ops.CharmBase):
             return
 
         # Validate config files if both are set (this also parses them)
-        if config_file and scrape_config_file:
-            config_data = self._validate_and_parse_configs()
-            if not config_data:
-                self.unit.status = ops.BlockedStatus(
-                    "Invalid configuration files. Check logs for details."
-                )
-                return
+        if config_file and not self.snmp_config:
+            self.unit.status = ops.BlockedStatus(
+                "Invalid configuration file. Check logs for details."
+            )
+            return
 
         # Check service status
         if self.snap.services["snmp-exporter"]["active"] is False:
@@ -186,26 +141,24 @@ class SNMPExporterCharm(ops.CharmBase):
         else:
             self.unit.status = ops.ActiveStatus()
 
-    def scrape_configs(self):
+    def scrape_configs(self) -> List[Dict]:
         """Return the scrape configs for the endpoints generated by the SNMP exporter and for the SNMP exporter itself."""
-        # Try to get validated config files first
-        config_data = self._validate_and_parse_configs()
-        if config_data:
-            # Use scrape_config_file as-is (return just the list of jobs)
-            _, scrape_config = config_data
-            return scrape_config["scrape_configs"]
+        if config_file := cast(str, self.config["scrape_config_file"]):
+            scrape_config = yaml.safe_load(config_file)
+            if not isinstance(scrape_config, Dict):
+                logger.error(
+                    f"Unable to set scrape config from file. Use juju config {self.unit.name} scrape_config_file=@FILENAME"
+                )
+            else:
+                return scrape_config["scrape_configs"]
 
-        # Original behavior when using targets parameter
+        # Original behavior when using targets directly from Juju config
         return [
             # The actual SNMP scrape jobs
             {
                 "job_name": "snmp",
                 "static_configs": [
-                    {
-                        "targets": typing.cast(
-                            str, self.model.config["targets"]
-                        ).split(",")
-                    }
+                    {"targets": typing.cast(str, self.model.config["targets"]).split(",")}
                 ],
                 "metrics_path": "/snmp",
                 "params": {
@@ -230,9 +183,7 @@ class SNMPExporterCharm(ops.CharmBase):
             # The metrics of prometheus-snmp-exporter itself
             {
                 "job_name": "snmp-exporter",
-                "static_configs": [
-                    {"targets": [f"localhost:{EXPORTER_PORT}"]}
-                ],
+                "static_configs": [{"targets": [f"localhost:{EXPORTER_PORT}"]}],
             },
         ]
 
