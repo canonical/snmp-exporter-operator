@@ -7,7 +7,7 @@
 import logging
 import os
 import typing
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, cast
 
 import ops
 import yaml
