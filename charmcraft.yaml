@@ -27,7 +27,7 @@ description: |
       through Grafana Agent to Prometheus.
 
 links:
-  documentation: https://discourse.charmhub.io/t/snmp-exporter-docs-index/12050
+  documentation: https://documentation.ubuntu.com/observability/latest/
   website: https://charmhub.io/snmp-exporter
   source: https://github.com/canonical/snmp-exporter-operator
   issues: https://github.com/canonical/snmp-exporter-operator/issues
