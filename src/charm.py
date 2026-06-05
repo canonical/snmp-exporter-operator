@@ -7,17 +7,21 @@
 import logging
 import os
 import typing
+from pathlib import Path
 from typing import Dict, List, Optional, cast
 
 import ops
+import ops_tracing
 import yaml
-from charms.grafana_agent.v0.cos_agent import COSAgentProvider
+from charmlibs.interfaces.certificate_transfer import CertificateTransferRequires
+from charms.grafana_agent.v0.cos_agent import COSAgentProvider, charm_tracing_config
 from charms.operator_libs_linux.v2 import snap
 
 logger = logging.getLogger(__name__)
 
 SNAP_CHANNEL = "0.24/stable"
 EXPORTER_PORT = 9116
+CA_CERT_PATH = Path("/etc/snmp-exporter/receive-ca-cert.crt")
 
 
 class SNMPExporterCharm(ops.CharmBase):
@@ -28,15 +32,37 @@ class SNMPExporterCharm(ops.CharmBase):
 
         self.snap = snap.SnapCache()["prometheus-snmp-exporter"]
 
-        self.cos_agent = COSAgentProvider(
+        self._cos_agent = COSAgentProvider(
             charm=self,
             scrape_configs=self.scrape_configs(),
             refresh_events=[self.on.config_changed],
+            tracing_protocols=["otlp_http"],
         )
+
+        self._cert_transfer = CertificateTransferRequires(self, "receive-ca-cert")
 
         self.framework.observe(self.on.install, self.on_install)
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.config_changed, self.on_config_changed)
+
+        self.framework.observe(
+            self.on.cos_agent_relation_joined,  # pyright: ignore
+            self._on_cos_agent_relation_changed,
+        )
+        self.framework.observe(
+            self.on.cos_agent_relation_changed,  # pyright: ignore
+            self._on_cos_agent_relation_changed,
+        )
+        self.framework.observe(
+            self._cert_transfer.on.certificate_set_updated,  # pyright: ignore
+            self._on_cert_transfer_available,
+        )
+        self.framework.observe(
+            self._cert_transfer.on.certificates_removed,  # pyright: ignore
+            self._on_cert_transfer_removed,
+        )
+
+        self._reconcile_charm_tracing()
 
     def on_install(self, event: ops.InstallEvent):
         """Handle install event."""
@@ -186,6 +212,34 @@ class SNMPExporterCharm(ops.CharmBase):
                 "static_configs": [{"targets": [f"localhost:{EXPORTER_PORT}"]}],
             },
         ]
+
+    def _reconcile_charm_tracing(self):
+        """Configure ops.tracing to send traces to a tracing backend via cos-agent."""
+        endpoint, ca_cert_path = charm_tracing_config(self._cos_agent, CA_CERT_PATH)
+        if not endpoint:
+            return
+        ca_cert = Path(ca_cert_path).read_text() if ca_cert_path else None
+        ops_tracing.set_destination(
+            url=endpoint + "/v1/traces",
+            ca=ca_cert,
+        )
+
+    def _on_cos_agent_relation_changed(self, _):
+        """Reconcile charm tracing when cos-agent relation changes."""
+        self._reconcile_charm_tracing()
+
+    def _on_cert_transfer_available(self, event):
+        """Write received CA certificates to disk and reconcile tracing."""
+        CA_CERT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        certs = "\n\n".join(event.certificates)
+        CA_CERT_PATH.write_text(certs + "\n")
+        self._reconcile_charm_tracing()
+
+    def _on_cert_transfer_removed(self, _):
+        """Remove CA certificate file and reconcile tracing."""
+        if CA_CERT_PATH.exists():
+            CA_CERT_PATH.unlink()
+        self._reconcile_charm_tracing()
 
 
 if __name__ == "__main__":  # pragma: nocover
