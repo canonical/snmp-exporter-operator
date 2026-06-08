@@ -14,6 +14,7 @@ from conftest import (
     patch_otel_collector_log_level,
 )
 from jubilant import Juju
+from pytest_bdd import given, then, when
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 pytestmark = pytest.mark.usefixtures("patch_update_status_interval")
@@ -31,11 +32,11 @@ def _trigger_update_status_event(juju: Juju, unit_name: str):
     )
 
 
-@pytest.fixture(scope="module")
-def deployed_with_tracing(juju: Juju, charm: str):
-    """Deploy the snmp-exporter charm integrated with otel-collector for tracing."""
-    # snmp-exporter is NOT a subordinate, deploy it directly
-    juju.deploy(charm, APP_NAME, base=APP_BASE)
+@pytest.mark.setup
+@given("a snmp-exporter charm is deployed")
+def test_deploy_snmp_exporter(juju: Juju, charm):
+    """Deploy the snmp-exporter charm."""
+    juju.deploy(charm, APP_NAME)
     juju.wait(
         lambda status: jubilant.all_blocked(status, APP_NAME),
         timeout=10 * 60,
@@ -43,36 +44,46 @@ def deployed_with_tracing(juju: Juju, charm: str):
         successes=3,
     )
 
-    # Deploy opentelemetry-collector
+
+@pytest.mark.setup
+@when("an opentelemetry-collector charm is deployed")
+def test_deploy_otel_collector(juju: Juju):
+    """Deploy the opentelemetry-collector charm."""
     config = {
         "tracing_sampling_rate_workload": 100,
         "debug_exporter_for_traces": True,
     }
     juju.deploy(OTEL_COLLECTOR_APP_NAME, channel="dev/edge", base=APP_BASE, config=config)
-    juju.wait(
-        lambda status: jubilant.all_agents_idle(status, OTEL_COLLECTOR_APP_NAME),
-        timeout=10 * 60,
-    )
 
-    # Integrate with cos-agent
+
+@pytest.mark.setup
+@when("integrated with the snmp-exporter over cos-agent")
+def test_integrate_cos_agent(juju: Juju):
+    """Integrate snmp-exporter with opentelemetry-collector via cos-agent."""
     juju.integrate(
         APP_NAME + ":cos-agent",
         OTEL_COLLECTOR_APP_NAME + ":cos-agent",
     )
     juju.wait(
-        lambda status: jubilant.all_agents_idle(status, OTEL_COLLECTOR_APP_NAME, APP_NAME),
+        lambda status: jubilant.all_blocked(status, OTEL_COLLECTOR_APP_NAME),
         timeout=10 * 60,
+        delay=10,
+        successes=3,
+    )
+    juju.wait(
+        lambda status: jubilant.all_blocked(status, APP_NAME),
+        timeout=10 * 60,
+        delay=10,
+        successes=6,
     )
 
     patch_otel_collector_log_level(juju)
 
-    yield juju
 
-
+@then("charm traces are pushed to the collector")
 @retry(stop=stop_after_attempt(10), wait=wait_fixed(10))
-def test_charm_traces_are_pushed(deployed_with_tracing: Juju):
+def test_charm_traces_are_pushed(juju: Juju):
     """Verify charm traces are pushed to the collector."""
-    juju = deployed_with_tracing
     _trigger_update_status_event(juju, f"{APP_NAME}/0")
     grep_filters = ["ResourceTraces", f"service.name={APP_NAME}", "charm=snmp-exporter"]
     assert_pattern_in_snap_logs(juju, grep_filters)

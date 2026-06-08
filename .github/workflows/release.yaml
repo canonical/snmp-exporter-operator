@@ -20,3 +20,4 @@ jobs:
     secrets: inherit
     with:
       default-track: dev
+      provider: machine
